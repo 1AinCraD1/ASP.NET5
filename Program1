@@ -1,0 +1,73 @@
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.Extensions.DependencyInjection;
+using System;
+
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+app.UseStaticFiles();
+app.UseRouting();
+app.UseCookiePolicy();
+
+app.MapGet("/", async context =>
+{
+    var htmlForm = @"
+    <html>
+    <body>
+        <h2>Input Form</h2>
+        <form method='post' action='/save-data'>
+            <label for='value'>Enter Value:</label>
+            <input type='text' id='value' name='value' required /><br><br>
+            
+            <label for='expiryDate'>Select Expiry Date and Time:</label>
+            <input type='datetime-local' id='expiryDate' name='expiryDate' required /><br><br>
+            
+            <button type='submit'>Save to Cookies</button>
+        </form>
+    </body>
+    </html>";
+
+    await context.Response.WriteAsync(htmlForm);
+});
+
+app.MapPost("/save-data", async context =>
+{
+    var form = context.Request.Form;
+    var value = form["value"];
+    var expiryDate = DateTime.Parse(form["expiryDate"]);
+
+    if (!string.IsNullOrEmpty(value) && expiryDate > DateTime.Now)
+    {
+        var cookieOptions = new CookieOptions
+        {
+            Expires = expiryDate
+        };
+        context.Response.Cookies.Append("StoredValue", value, cookieOptions);
+        context.Response.Redirect("/check-cookie");
+    }
+    else
+    {
+        await context.Response.WriteAsync("Invalid data provided.");
+    }
+});
+
+app.MapGet("/check-cookie", async context =>
+{
+    var storedValue = context.Request.Cookies["StoredValue"];
+
+    if (storedValue != null)
+    {
+        var decodedValue = Uri.UnescapeDataString(storedValue);
+        await context.Response.WriteAsync($"Value from Cookies: {decodedValue}");
+    }
+    else
+    {
+        await context.Response.WriteAsync("No value in Cookies.");
+    }
+});
+
+app.Run();
